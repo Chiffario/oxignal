@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize, Serializer, de};
-use serde_repr::{Deserialize_repr, Serialize_repr};
 
 macro_rules! implement_variants {
     ($struct_name:ident, $($variant:ident => $name:ident = $value:expr),*) => {
@@ -68,5 +67,29 @@ impl<'de, const T: u8> Deserialize<'de> for ExactMessageType<T> {
 impl<const T: u8> Serialize for ExactMessageType<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_u8(T)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::protocol::message_type::{ExactMessageType, MessageTypeEnum};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize, Debug)]
+    struct TestStruct {
+        value: ExactMessageType<{ MessageTypeEnum::INVOCATION }>,
+    }
+
+    #[test]
+    fn test_const_deserialization() {
+        let correct = r#"{ "value": 1 }"#;
+        serde_json::from_str::<TestStruct>(correct).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_deserialization() {
+        let invalid = r#"{ "value": 5 }"#;
+        serde_json::from_str::<TestStruct>(invalid).unwrap();
     }
 }

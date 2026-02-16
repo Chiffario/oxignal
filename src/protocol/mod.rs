@@ -21,8 +21,8 @@ pub struct Invocation<T> {
     /// as a json object
     pub arguments: T,
     // Array of unique stream IDs consumed by target
-    // #[serde(skip_serializing_if = "Vec::is_empty")]
-    // streamIds: Vec<String>
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    stream_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -84,4 +84,82 @@ struct Sequence {
     ///
     /// Only sent on reconnects
     sequence_id: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::protocol::Invocation;
+
+    #[test]
+    fn test_invocation_de() {
+        let valid = r#"
+{
+    "type": 1,
+    "invocationId": "123",
+    "target": "Send",
+    "arguments": [
+        42,
+        "Test Message"
+    ]
+}        "#;
+        let data = serde_json::from_str::<Invocation<(u32, String)>>(valid).unwrap();
+        assert_eq!(data.invocation_id, Some(String::from("123")));
+        assert_eq!(data.target, String::from("Send"));
+        assert_eq!(data.arguments.0, 42);
+        assert_eq!(data.arguments.1, String::from("Test Message"));
+        assert!(data.stream_ids.len() == 0);
+
+        let non_blocking = r#"
+{
+    "type": 1,
+    "target": "Send",
+    "arguments": [
+        42,
+        "Test Message"
+    ]
+}        "#;
+
+        let data = serde_json::from_str::<Invocation<(u32, String)>>(non_blocking).unwrap();
+        assert_eq!(data.invocation_id, None);
+        assert_eq!(data.target, String::from("Send"));
+        assert_eq!(data.arguments.0, 42);
+        assert_eq!(data.arguments.1, String::from("Test Message"));
+        assert!(data.stream_ids.len() == 0);
+
+        let with_stream = r#"
+{
+    "type": 1,
+    "invocationId": "123",
+    "target": "Send",
+    "arguments": [
+        42,
+        "Test Message"
+    ],
+    "streamIds": [
+        "1"
+    ]
+}        "#;
+        let data = serde_json::from_str::<Invocation<(u32, String)>>(with_stream).unwrap();
+        assert_eq!(data.invocation_id, Some(String::from("123")));
+        assert_eq!(data.target, String::from("Send"));
+        assert_eq!(data.arguments.0, 42);
+        assert_eq!(data.arguments.1, String::from("Test Message"));
+        assert!(data.stream_ids.len() == 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invocation_de_invalid() {
+        let invalid = r#"
+{
+    "type": 1,
+    "invocationId": "123",
+    "target": "Send",
+    "arguments": [
+        "Test Message",
+        42
+    ]
+}        "#;
+        serde_json::from_str::<Invocation<(u32, String)>>(invalid).unwrap();
+    }
 }

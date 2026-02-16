@@ -17,3 +17,21 @@ impl PingMessage {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::protocol::ping::PingMessage;
+
+    #[test]
+    fn test_deserialize() {
+        let value = r#"{ "type": 6 }"#;
+        serde_json::from_str::<PingMessage>(value).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_deserialize() {
+        let value = r#"{ "type": 69 }"#;
+        serde_json::from_str::<PingMessage>(value).unwrap();
+    }
+}
