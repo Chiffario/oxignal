@@ -1,0 +1,72 @@
+use serde::{Deserialize, Serialize, Serializer, de};
+use serde_repr::{Deserialize_repr, Serialize_repr};
+
+macro_rules! implement_variants {
+    ($struct_name:ident, $($variant:ident => $name:ident = $value:expr),*) => {
+        #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+        pub enum $struct_name {
+            $($variant = $value),*
+        }
+
+        impl $struct_name {
+            $(pub const $name: u8 = Self::$variant as u8;)*
+        }
+
+        impl TryFrom<u8> for $struct_name {
+            type Error = u8;
+
+            fn try_from(value: u8) -> Result<Self, Self::Error> {
+                match value {
+                    $($struct_name::$name => Ok($struct_name::$variant),)*
+                    v => Err(value)
+                }
+            }
+        }
+    }
+}
+
+implement_variants!(
+    MessageTypeEnum,
+    Invocation => INVOCATION = 1,
+    StreamItem => STREAM_ITEM = 2,
+    Completion => COMPLETION = 3,
+    StreamInvocation => STREAM_INVOCATION = 4,
+    CancelInvocation => CANCEL_INVOCATION = 5,
+    Ping => PING = 6,
+    Close => CLOSE = 7,
+    Ack => ACK = 8,
+    Sequence => SEQUENCE = 9
+);
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct ExactMessageType<const T: u8>;
+
+impl<'de, const T: u8> Deserialize<'de> for ExactMessageType<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = u8::deserialize(deserializer)?;
+        if value == T {
+            Ok(ExactMessageType)
+        } else {
+            // Convert the raw u8s back to the enum variant names for a readable error
+            let expected = MessageTypeEnum::try_from(T)
+                .map(|t| format!("{:?}", t))
+                .unwrap_or_else(|_| T.to_string());
+            let got = MessageTypeEnum::try_from(value)
+                .map(|t| format!("{:?}", t))
+                .unwrap_or_else(|_| value.to_string());
+
+            Err(de::Error::custom(format!(
+                "expected message_type {expected}, got {got}"
+            )))
+        }
+    }
+}
+
+impl<const T: u8> Serialize for ExactMessageType<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u8(T)
+    }
+}
