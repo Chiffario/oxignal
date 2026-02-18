@@ -20,12 +20,19 @@ impl PingMessage {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::ping::PingMessage;
+    use crate::protocol::{message_type::MessageType, ping::PingMessage};
 
     #[test]
-    fn test_deserialize() {
+    fn test_deserialize_concrete() {
         let value = r#"{ "type": 6 }"#;
         serde_json::from_str::<PingMessage>(value).unwrap();
+    }
+
+    #[test]
+    fn test_deserialize_variant() {
+        let value = r#"{ "type": 6 }"#;
+        let variant: MessageType<(), ()> = serde_json::from_str(value).unwrap();
+        assert!(matches!(variant, MessageType::Ping(_)))
     }
 
     #[test]
@@ -33,5 +40,12 @@ mod tests {
     fn test_invalid_deserialize() {
         let value = r#"{ "type": 69 }"#;
         serde_json::from_str::<PingMessage>(value).unwrap();
+    }
+
+    #[test]
+    fn test_serialize() {
+        let ping = serde_json::to_value(PingMessage::new()).unwrap();
+        let expected = serde_json::json!({ "type": 6 });
+        assert_eq!(ping, expected);
     }
 }

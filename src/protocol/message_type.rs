@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize, Serializer, de};
 
+use crate::protocol::{
+    Ack, CancelInvocation, Close, Completion, Invocation, Sequence,
+    ping::{self, PingMessage},
+};
+
 macro_rules! implement_variants {
     ($struct_name:ident, $($variant:ident => $name:ident = $value:expr),*) => {
         #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -37,6 +42,87 @@ implement_variants!(
     Sequence => SEQUENCE = 9
 );
 
+#[derive(Debug)]
+pub enum MessageType<T, U> {
+    Invocation(Invocation<T>),
+    Completion(Completion<U>),
+    CancelInvocation(CancelInvocation),
+    Ping(PingMessage),
+    Close(Close),
+    Ack(Ack),
+    Sequence(Sequence),
+}
+
+impl<T: Serialize, U: Serialize> Serialize for MessageType<T, U> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Due to the tags being internal, serialization should be delegated,
+        // as by default not doing so makes an extra external tag
+        match self {
+            MessageType::Invocation(invocation) => invocation.serialize(serializer),
+            MessageType::Completion(completion) => completion.serialize(serializer),
+            MessageType::CancelInvocation(cancel_invocation) => {
+                cancel_invocation.serialize(serializer)
+            }
+            MessageType::Ping(ping_message) => ping_message.serialize(serializer),
+            MessageType::Close(close) => close.serialize(serializer),
+            MessageType::Ack(ack) => ack.serialize(serializer),
+            MessageType::Sequence(sequence) => sequence.serialize(serializer),
+        }
+    }
+}
+
+impl<'de, T, U> Deserialize<'de> for MessageType<T, U>
+where
+    T: for<'d> Deserialize<'d>,
+    U: for<'d> Deserialize<'d>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        // Not sure how optimal this is, but given there is no clonning,
+        // at least there is one less alloc than there could've been :p
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let peek = value
+            .get("type")
+            .ok_or_else(|| D::Error::custom(format!("Type tag not found")))?
+            .as_u64()
+            .ok_or_else(|| D::Error::custom(format!("Failed to convert to number")))?;
+
+        match peek {
+            1 => Ok(MessageType::Invocation(
+                serde_json::from_value::<Invocation<T>>(value).map_err(D::Error::custom)?,
+            )),
+            2 => todo!(),
+            3 => Ok(MessageType::Completion(
+                serde_json::from_value::<Completion<U>>(value).map_err(D::Error::custom)?,
+            )),
+            4 => todo!(),
+            5 => Ok(MessageType::CancelInvocation(
+                serde_json::from_value(value).map_err(D::Error::custom)?,
+            )),
+            6 => Ok(MessageType::Ping(
+                serde_json::from_value(value).map_err(D::Error::custom)?,
+            )),
+            7 => Ok(MessageType::Close(
+                serde_json::from_value(value).map_err(D::Error::custom)?,
+            )),
+            8 => Ok(MessageType::Ack(
+                serde_json::from_value(value).map_err(D::Error::custom)?,
+            )),
+            9 => Ok(MessageType::Sequence(
+                serde_json::from_value(value).map_err(D::Error::custom)?,
+            )),
+            t => Err(D::Error::custom(format!("Unknown message type: {}", t))),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct ExactMessageType<const T: u8>;
 
@@ -72,12 +158,31 @@ impl<const T: u8> Serialize for ExactMessageType<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::message_type::{ExactMessageType, MessageTypeEnum};
+    use crate::protocol::{
+        Invocation,
+        message_type::{ExactMessageType, MessageType, MessageTypeEnum},
+    };
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, Debug)]
     struct TestStruct {
         value: ExactMessageType<{ MessageTypeEnum::INVOCATION }>,
+    }
+
+    #[test]
+    fn test_tags() {
+        let correct = r#"
+        {
+            "type": 1,
+            "target": "Send",
+            "arguments": [
+                42,
+                "Test Message"
+            ]
+        }        "#;
+        let message = serde_json::from_str::<MessageType<(u32, String), ()>>(correct).unwrap();
+        assert!(matches!(message, MessageType::Invocation(_)));
+        serde_json::from_str::<Invocation<(u32, String)>>(correct).unwrap();
     }
 
     #[test]

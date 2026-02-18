@@ -2,7 +2,9 @@ pub mod handshake;
 pub mod message_type;
 pub mod ping;
 
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::vec;
+
+use serde::{Deserialize, Serialize};
 
 use crate::protocol::message_type::{ExactMessageType, MessageTypeEnum};
 
@@ -23,6 +25,18 @@ pub struct Invocation<T> {
     // Array of unique stream IDs consumed by target
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     stream_ids: Vec<String>,
+}
+
+impl<T> Invocation<T> {
+    fn new(invocation_id: Option<String>, target: String, arguments: T) -> Self {
+        Self {
+            message_type: ExactMessageType::<{ MessageTypeEnum::INVOCATION }>,
+            invocation_id,
+            target,
+            arguments,
+            stream_ids: vec![],
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -76,19 +90,19 @@ pub struct Ack {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-struct Sequence {
+pub struct Sequence {
     /// Message type, should always be MessageType::Sequence here
     #[serde(rename = "type")]
     message_type: ExactMessageType<{ MessageTypeEnum::SEQUENCE }>,
     /// Number, specifying the new starting message ID
     ///
     /// Only sent on reconnects
-    sequence_id: u32,
+    sequence_id: Option<u32>,
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::Invocation;
+    use crate::protocol::{Invocation, message_type::MessageType};
 
     #[test]
     fn test_invocation_de() {
@@ -148,8 +162,33 @@ mod tests {
     }
 
     #[test]
+    fn test_invocation_ser_concrete() {
+        let valid: Invocation<(i32, String)> = Invocation::new(
+            None,
+            String::from("Send"),
+            (42, String::from("Test Message")),
+        );
+        let value = serde_json::to_string(&valid).unwrap();
+        let correct = r#"{"type":1,"target":"Send","arguments":[42,"Test Message"]}"#;
+        assert_eq!(value, correct);
+    }
+
+    #[test]
+    fn test_invocation_ser_variant() {
+        let valid: Invocation<(i32, String)> = Invocation::new(
+            None,
+            String::from("Send"),
+            (42, String::from("Test Message")),
+        );
+        let variant: MessageType<(i32, String), ()> = MessageType::Invocation(valid);
+        let value = serde_json::to_string(&variant).unwrap();
+        let correct = r#"{"type":1,"target":"Send","arguments":[42,"Test Message"]}"#;
+        assert_eq!(value, correct);
+    }
+
+    #[test]
     #[should_panic]
-    fn test_invocation_de_invalid() {
+    fn test_invocation_de_argument_type() {
         let invalid = r#"
 {
     "type": 1,
