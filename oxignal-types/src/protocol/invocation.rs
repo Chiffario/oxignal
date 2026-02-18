@@ -95,36 +95,36 @@ pub struct Completion<T> {
 }
 
 impl<T> Completion<T> {
-    /// Initializes a normal Completion
-    ///
-    /// # Example
-    /// ```
-    /// # use oxignal_types::Completion;
-    /// let completion = Completion::new(String::from("123"), (42u32, String::from("Test")));
-    /// # assert_eq!(serde_json::json!({ "type": 3, "invocationId": "123", "result": [42, "Test"]}), serde_json::to_value(completion).unwrap());
-    /// ```
-    pub const fn new(invocation_id: String, result: T) -> Self {
-        Self {
-            message_type: ExactMessageType,
-            invocation_id,
-            result: Some(CompletionResult::Result(result)),
-        }
-    }
-
     /// Initializes a normal Completion without a return value.
     /// Usually used for void methods
     ///
     /// # Example
     /// ```
     /// # use oxignal_types::Completion;
-    /// let completion: Completion<(u32, String)> = Completion::new_void(String::from("123"));
+    /// let completion: Completion<(u32, String)> = Completion::new(String::from("123"));
     /// # assert_eq!(serde_json::json!({ "type": 3, "invocationId": "123"}), serde_json::to_value(completion).unwrap());
     /// ```
-    pub const fn new_void(invocation_id: String) -> Self {
+    pub const fn new(invocation_id: String) -> Self {
         Self {
             message_type: ExactMessageType,
             invocation_id,
             result: None,
+        }
+    }
+
+    /// Initializes a normal Completion
+    ///
+    /// # Example
+    /// ```
+    /// # use oxignal_types::Completion;
+    /// let completion = Completion::with_result(String::from("123"), (42u32, String::from("Test")));
+    /// # assert_eq!(serde_json::json!({ "type": 3, "invocationId": "123", "result": [42, "Test"]}), serde_json::to_value(completion).unwrap());
+    /// ```
+    pub const fn with_result(invocation_id: String, result: T) -> Self {
+        Self {
+            message_type: ExactMessageType,
+            invocation_id,
+            result: Some(CompletionResult::Result(result)),
         }
     }
 
@@ -134,10 +134,10 @@ impl<T> Completion<T> {
     /// # Example
     /// ```
     /// # use oxignal_types::Completion;
-    /// let completion: Completion<(u32, String)> = Completion::error(String::from("123"), String::from("Oops"));
+    /// let completion: Completion<(u32, String)> = Completion::with_error(String::from("123"), String::from("Oops"));
     /// # assert_eq!(serde_json::json!({ "type": 3, "invocationId": "123", "error": "Oops"}), serde_json::to_value(completion).unwrap());
     /// ```
-    pub const fn error(invocation_id: String, reason: String) -> Self {
+    pub const fn with_error(invocation_id: String, reason: String) -> Self {
         Self {
             message_type: ExactMessageType,
             invocation_id,
