@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize, Serializer, de};
 
 use crate::protocol::{
-    Ack, CancelInvocation, Close, Completion, Invocation, Sequence,
-    ping::{self, PingMessage},
+    connection::{Ack, Close, Sequence},
+    invocation::{CancelInvocation, Completion, Invocation},
+    ping::Ping,
 };
 
 macro_rules! implement_variants {
@@ -22,7 +23,7 @@ macro_rules! implement_variants {
             fn try_from(value: u8) -> Result<Self, Self::Error> {
                 match value {
                     $($struct_name::$name => Ok($struct_name::$variant),)*
-                    v => Err(value)
+                    value => Err(value)
                 }
             }
         }
@@ -47,7 +48,7 @@ pub enum MessageType<T, U> {
     Invocation(Invocation<T>),
     Completion(Completion<U>),
     CancelInvocation(CancelInvocation),
-    Ping(PingMessage),
+    Ping(Ping),
     Close(Close),
     Ack(Ack),
     Sequence(Sequence),
@@ -90,9 +91,9 @@ where
         let value = serde_json::Value::deserialize(deserializer)?;
         let peek = value
             .get("type")
-            .ok_or_else(|| D::Error::custom(format!("Type tag not found")))?
+            .ok_or_else(|| D::Error::custom("Type tag not found".to_string()))?
             .as_u64()
-            .ok_or_else(|| D::Error::custom(format!("Failed to convert to number")))?;
+            .ok_or_else(|| D::Error::custom("Failed to convert to number".to_string()))?;
 
         match peek {
             1 => Ok(MessageType::Invocation(
@@ -159,7 +160,7 @@ impl<const T: u8> Serialize for ExactMessageType<T> {
 #[cfg(test)]
 mod tests {
     use crate::protocol::{
-        Invocation,
+        invocation::Invocation,
         message_type::{ExactMessageType, MessageType, MessageTypeEnum},
     };
     use serde::{Deserialize, Serialize};

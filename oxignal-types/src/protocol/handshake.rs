@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// This message is *always* json as per Hub protocol spec
 #[derive(Debug, Serialize, Deserialize)]
-struct HandshakeRequest {
+pub struct HandshakeRequest {
     protocol: &'static str,
     version: u8,
 }
@@ -13,7 +13,16 @@ struct HandshakeRequest {
 impl HandshakeRequest {
     /// Creates a new HandshakeRequest object
     ///
-    /// The protocol is temporarily hardcoded for ease of testing
+    /// The protocol is temporarily hardcoded to json, as currently there
+    /// are no plans to support MessagePack
+    ///
+    /// # Example
+    /// ```
+    /// # use oxignal_types::HandshakeRequest;
+    /// # use serde_json;
+    /// let handshake_request = HandshakeRequest::new();
+    /// # assert_eq!(serde_json::to_value(handshake_request).unwrap(), serde_json::json!({ "protocol": "json", "version": 1}));
+    /// ```
     pub const fn new() -> Self {
         HandshakeRequest {
             protocol: "json",
@@ -22,12 +31,19 @@ impl HandshakeRequest {
     }
 }
 
+impl Default for HandshakeRequest {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 /// Handshake response sent by the server to acknowledge the handshake request
 ///
 /// Returns an error if the handshake failed
-struct HandshakeResponse {
+pub struct HandshakeResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Optional error message only returned on protocol mismatches
-    error: Option<String>,
+    pub error: Option<String>,
 }
+// no `new()` for HandshakeResponse as this is a client library for now
