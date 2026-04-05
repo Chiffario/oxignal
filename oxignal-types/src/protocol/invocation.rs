@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::protocol::message_type::{ExactMessageType, MessageTypeEnum};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Invocation<T> {
     #[serde(rename = "type")]
@@ -19,6 +19,49 @@ pub struct Invocation<T> {
     // Array of unique stream IDs consumed by target
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     stream_ids: Vec<String>,
+}
+
+impl<T: Serialize> Serialize for Invocation<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+
+        // Determine the number of fields we'll serialize
+        let mut field_count = 2; // type + target are always present
+        if self.invocation_id.is_some() {
+            field_count += 1;
+        }
+        if !self.stream_ids.is_empty() {
+            field_count += 1;
+        }
+        field_count += 1; // arguments
+
+        let mut map = serializer.serialize_map(Some(field_count))?;
+
+        map.serialize_entry("type", &self.message_type)?;
+
+        if let Some(ref id) = self.invocation_id {
+            map.serialize_entry("invocationId", id)?;
+        }
+
+        map.serialize_entry("target", &self.target)?;
+
+        // Serialize arguments: wrap in array if not already an array
+        let args_value =
+            serde_json::to_value(&self.arguments).map_err(serde::ser::Error::custom)?;
+
+        let args_array = match args_value {
+            serde_json::Value::Array(_) => args_value,
+            other => serde_json::Value::Array(vec![other]),
+        };
+
+        map.serialize_entry("arguments", &args_array)?;
+
+        if !self.stream_ids.is_empty() {
+            map.serialize_entry("streamIds", &self.stream_ids)?;
+        }
+
+        map.end()
+    }
 }
 
 impl<T> Invocation<T> {
@@ -150,6 +193,8 @@ impl<T> Completion<T> {
 mod tests {
     use core::error;
 
+    use serde::Serialize;
+
     use crate::protocol::{
         invocation::{CancelInvocation, Completion, Invocation},
         message_type::{ExactMessageType, MessageType},
@@ -221,6 +266,52 @@ mod tests {
         );
         let value = serde_json::to_string(&valid).unwrap();
         let correct = r#"{"type":1,"target":"Send","arguments":[42,"Test Message"]}"#;
+        assert_eq!(value, correct);
+    }
+
+    #[derive(Serialize)]
+    struct InnerStruct {
+        number: u32,
+        value: String,
+    }
+
+    #[derive(Serialize)]
+    struct OuterStruct {
+        inner: InnerStruct,
+    }
+    #[test]
+    fn test_invocation_ser_struct() {
+        let valid: Invocation<InnerStruct> = Invocation::new(
+            None,
+            String::from("Send"),
+            InnerStruct {
+                number: 123,
+                value: String::from("Test"),
+            },
+        );
+        let value = serde_json::to_value(&valid).unwrap();
+        let correct = serde_json::json!({"type": 1, "target": "Send", "arguments": [
+            {"number": 123, "value": "Test"}]
+        });
+        assert_eq!(value, correct);
+    }
+
+    #[test]
+    fn test_invocation_ser_nested_struct() {
+        let valid: Invocation<OuterStruct> = Invocation::new(
+            None,
+            String::from("Send"),
+            OuterStruct {
+                inner: InnerStruct {
+                    number: 123,
+                    value: String::from("Test"),
+                },
+            },
+        );
+        let value = serde_json::to_value(&valid).unwrap();
+        let correct = serde_json::json!({"type": 1, "target": "Send", "arguments": [
+            {"inner": {"number": 123, "value": "Test"}}]
+        });
         assert_eq!(value, correct);
     }
 
