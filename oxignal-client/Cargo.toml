@@ -4,3 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+apply = "0.3.0"
+futures = "0.3.32"
+oxignal-types = { version = "0.1.0", path = "../oxignal-types" }
+serde_core = "1.0.228"
+serde_json = "1.0.149"
+tokio = { version = "1.51.0", features = ["full"] }
+tokio-tungstenite = { version = "0.29.0", features = ["tokio-rustls", "url"] }
+tracing = "0.1.44"

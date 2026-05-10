@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// This message is *always* json as per Hub protocol spec
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HandshakeRequest {
-    protocol: &'static str,
+    protocol: String,
     version: u8,
 }
 
@@ -23,9 +23,9 @@ impl HandshakeRequest {
     /// let handshake_request = HandshakeRequest::new();
     /// # assert_eq!(serde_json::to_value(handshake_request).unwrap(), serde_json::json!({ "protocol": "json", "version": 1}));
     /// ```
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         HandshakeRequest {
-            protocol: "json",
+            protocol: "json".to_owned(),
             version: 1,
         }
     }

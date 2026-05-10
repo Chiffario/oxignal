@@ -77,10 +77,10 @@ impl<T> Invocation<T> {
     /// let invocation = Invocation::new(invocation_id, target, arguments);
     /// # assert_eq!(json, serde_json::to_value(invocation).unwrap());
     /// ```
-    pub const fn new(invocation_id: Option<String>, target: String, arguments: T) -> Self {
+    pub fn new(invocation_id: impl Into<Option<String>>, target: String, arguments: T) -> Self {
         Self {
             message_type: ExactMessageType::<{ MessageTypeEnum::INVOCATION }>,
-            invocation_id,
+            invocation_id: invocation_id.into(),
             target,
             arguments,
             stream_ids: vec![],
